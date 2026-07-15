@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Local project data and generated stores
+data/
+chroma_db/
+tmp/
+logs/
+*.log
+*.db
+*.sqlite*
+
+# Generated artifacts
+*.docx
+*.pdf
+docs/linkedin_images/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

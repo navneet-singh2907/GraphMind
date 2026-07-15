@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "graphmind": {
+      "command": "C:\\path\\to\\GraphMind\\venv\\Scripts\\python.exe",
+      "args": ["-m", "src.mcp_server"],
+      "cwd": "C:\\path\\to\\GraphMind"
+    }
+  }
+}
