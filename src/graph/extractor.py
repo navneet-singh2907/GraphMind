@@ -1,16 +1,16 @@
 import json
 from openai import OpenAI
+from src.graph.ontology import DEFAULT_ONTOLOGY
 from src.utils.config import NEBIUS_API_KEY, NEBIUS_BASE_URL, LLM_MODEL
 from src.utils.entity_resolver import resolve_entities
 
-client = OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
+def _client() -> OpenAI:
+    if not NEBIUS_API_KEY:
+        raise RuntimeError("NEBIUS_API_KEY is not configured")
+    return OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
 
-ENTITY_TYPES = ["Person", "Organization", "Topic", "Concept", "Tool", "Project", "Resource"]
-
-RELATIONSHIP_TYPES = [
-    "PART_OF", "DISCUSSES", "MENTIONS", "RELATED_TO", "USES", "CREATED_BY",
-    "WORKS_AT", "REFERENCES", "DEPENDS_ON", "APPLIES", "COMPARES_WITH", "REQUIRES"
-]
+ENTITY_TYPES = list(DEFAULT_ONTOLOGY.extraction_labels)
+RELATIONSHIP_TYPES = list(DEFAULT_ONTOLOGY.relationship_types)
 
 EXTRACTION_PROMPT = """You are a knowledge graph extractor. Read the text below and extract entities and relationships.
 
@@ -49,7 +49,7 @@ def build_extraction_prompt(chunk_text: str) -> str:
 
 def extract_from_chunk(chunk_text: str) -> dict:
     prompt = build_extraction_prompt(chunk_text)
-    response = client.chat.completions.create(
+    response = _client().chat.completions.create(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,

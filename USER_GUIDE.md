@@ -1,17 +1,6 @@
 # GraphMind User Guide
 
-GraphMind turns a local document collection into a searchable vector index and connected Neo4j knowledge graph.
-
-## Prerequisites
-
-- Python 3.11 or later
-- A running Neo4j database
-- Model-provider credentials configured in `.env`
-- Source documents you are authorized to process
-
-## Installation
-
-From the project directory:
+## 1. Install
 
 ```powershell
 python -m venv venv
@@ -20,71 +9,85 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Edit `.env` and set:
+Configure the API and Neo4j values in `.env`.
 
-- `NEBIUS_API_KEY`
-- `NEBIUS_BASE_URL`
-- `NEO4J_URI`
-- `NEO4J_USERNAME`
-- `NEO4J_PASSWORD`
-- the desired model names
+## 2. Add authorized sources
 
-## Prepare the Knowledge Base
+Place documents beneath `data/raw/`. A top-level directory becomes its collection name:
 
-Put authorized documents beneath `data/raw/`, then run:
+```text
+data/raw/
+├── engineering/
+│   ├── architecture.docx
+│   └── services.xlsx
+└── research/
+    ├── paper.pdf
+    └── notes.md
+```
+
+Supported formats are text/Markdown, JSON/JSONL, CSV/TSV, PDF, DOCX, XLSX/XLSM, and HTML.
+
+## 3. Run incremental ingestion
 
 ```powershell
 python scripts\preprocess_raw_data.py
 ```
 
-Build the extracted graph and write it to Neo4j:
+The command reports discovered, parsed, unchanged, failed, and removed files. Parsing errors are recorded under `data/processed/ingestion_errors.json` without stopping unrelated sources.
+
+Use `--force` to reparse unchanged files or `--collection NAME` to set a collection explicitly.
+
+## 4. Build indexes
+
+Build and load the graph:
 
 ```powershell
-python scripts\extract_graph_from_processed.py --write-neo4j
+python scripts\extract_graph_from_processed.py --write-neo4j --clear
 ```
 
-Generated data and local indexes are ignored by Git.
+Build the semantic index:
 
-## Run the Streamlit Interface
+```powershell
+python -c "from src.retrieval.vector_rag import build_vector_store; build_vector_store()"
+```
+
+BM25, metadata, and source inspection read the canonical chunks directly and do not require a separate build step.
+
+## 5. Ask questions
 
 ```powershell
 streamlit run src\ui\app.py
 ```
 
-Use the hybrid assistant for normal questions. The comparison view shows how graph retrieval and semantic retrieval approach the same question differently.
+The main assistant displays its retrieval plan, tool calls, verification confidence, retries, and sources. The comparison view runs GraphRAG and vector RAG separately.
 
-## Connect an MCP Client
+## 6. Customize the ontology
 
-The server runs over standard input/output:
+Copy `config/default_ontology.json`, edit its labels and relationships, and set:
+
+```text
+ONTOLOGY_PATH=config/my_ontology.json
+```
+
+`Document`, `Chunk`, `PART_OF`, and `DISCUSSES` are required structural elements. Other entity and relationship types can be changed for a domain.
+
+## 7. Connect an MCP client
+
+Start the server with:
 
 ```powershell
 python -m src.mcp_server
 ```
 
-Copy `mcp_config.example.json`, replace the placeholder project path, and add it to your MCP client's configuration.
+Use `mcp_config.example.json` as the client configuration template. Start with `ask_graphmind` and `knowledge_stats`.
 
-GraphMind exposes:
-
-- `ask_graphmind`
-- `search_knowledge_base`
-- `query_knowledge_graph`
-- `run_readonly_cypher`
-- `knowledge_stats`
-
-## Smoke Test
+## 8. Validate
 
 ```powershell
-python scripts\smoke_test_mcp.py --question "Which concepts are connected to GraphRAG?"
+python -m unittest discover -s tests -v
+python scripts\smoke_test_mcp.py --question "Which documents discuss vector search?"
 ```
 
-## Troubleshooting
+## Data safety
 
-If Neo4j cannot be reached, verify the service is running and that the URI and credentials in `.env` are correct.
-
-If vector search returns no results, confirm that processed vector documents exist and rebuild the local Chroma store.
-
-If an MCP client does not display GraphMind, run the server command manually and check that the configuration uses absolute Windows paths where required.
-
-## Data Safety
-
-Do not commit `.env`, raw documents, processed document exports, database dumps, or `chroma_db`. The provided `.gitignore` excludes these paths by default.
+Never commit `.env`, `data/`, `chroma_db/`, logs, database dumps, or source documents. These locations are excluded by the repository `.gitignore`.

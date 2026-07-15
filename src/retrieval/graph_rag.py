@@ -6,6 +6,7 @@ from neo4j import GraphDatabase
 from openai import OpenAI
 
 from src.graph.neo4j_client import get_related_content, get_subgraph
+from src.graph.ontology import DEFAULT_ONTOLOGY
 from src.utils.config import (
     LLM_MODEL,
     NEBIUS_API_KEY,
@@ -17,32 +18,18 @@ from src.utils.config import (
 )
 
 
-client = OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
+def _client() -> OpenAI:
+    if not NEBIUS_API_KEY:
+        raise RuntimeError("NEBIUS_API_KEY is not configured")
+    return OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
 
-GRAPH_SCHEMA = """
-Node labels:
-- Document {id, name, source_path, source_type, collection}
-- Chunk {id, name, source_path, chunk_index}
-- Person {id, name}
-- Organization {id, name}
-- Topic {id, name}
-- Concept {id, name}
-- Tool {id, name}
-- Project {id, name}
-- Resource {id, name}
-
-Relationship types:
-- (Chunk)-[:PART_OF]->(Document)
-- (Chunk)-[:DISCUSSES]->(Person|Organization|Topic|Concept|Tool|Project|Resource)
-- (Document|Chunk)-[:MENTIONS|REFERENCES]->(Person|Organization|Topic|Concept|Tool|Project|Resource)
-- (Person)-[:WORKS_AT]->(Organization)
-- (Project)-[:CREATED_BY]->(Person|Organization)
-- (Project|Tool)-[:USES|DEPENDS_ON]->(Tool|Resource|Concept)
-- (Project|Resource)-[:APPLIES]->(Concept|Topic|Tool)
-- Any knowledge entity may use RELATED_TO, COMPARES_WITH, or REQUIRES where supported.
-
-The graph contents depend entirely on the documents indexed by the user.
-"""
+GRAPH_SCHEMA = (
+    DEFAULT_ONTOLOGY.schema_text()
+    + "\n\nStructural properties:\n"
+    + "- Document {id, name, source_uri, source_type, collection}\n"
+    + "- Chunk {id, name, source_uri, chunk_index}\n"
+    + "The graph contents depend entirely on the indexed documents."
+)
 
 CYPHER_PROMPT = """You are a Neo4j Cypher expert. Create one read-only query that answers the question.
 
@@ -59,7 +46,7 @@ RETURN concept.name AS concept, type(relationship) AS relationship, related.name
 Q: Which documents discuss vector search?
 MATCH (document:Document)<-[:PART_OF]-(chunk:Chunk)-[:DISCUSSES]->(concept)
 WHERE toLower(concept.name) CONTAINS "vector search"
-RETURN DISTINCT document.name AS document, document.source_path AS source LIMIT 20
+RETURN DISTINCT document.name AS document, document.source_uri AS source LIMIT 20
 
 Q: What tools does GraphMind use?
 MATCH (project:Project)-[:USES]->(tool:Tool)
@@ -95,7 +82,7 @@ Name specific entities and sources when available. If the graph returned no usef
 
 def generate_cypher(question: str) -> str:
     prompt = CYPHER_PROMPT.format(schema=GRAPH_SCHEMA, question=question)
-    response = client.chat.completions.create(
+    response = _client().chat.completions.create(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
@@ -141,7 +128,19 @@ def run_cypher(cypher: str) -> list[dict]:
 
 
 def answer_question(question: str) -> dict:
-    cypher = generate_cypher(question)
+    try:
+        cypher = generate_cypher(question)
+    except Exception as exc:
+        message = f"Graph retrieval is unavailable: {exc}"
+        return {
+            "question": question,
+            "cypher": "",
+            "graph_rows": [],
+            "answer": message,
+            "viz_nodes": [],
+            "viz_rels": [],
+            "related_content": [],
+        }
     ok, reason = _validate_readonly_cypher(cypher)
     if not ok:
         return {
@@ -156,7 +155,7 @@ def answer_question(question: str) -> dict:
 
     rows = run_cypher(cypher)
     graph_data = str(rows) if rows else "No results found."
-    response = client.chat.completions.create(
+    response = _client().chat.completions.create(
         model=LLM_MODEL,
         messages=[
             {

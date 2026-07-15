@@ -2,19 +2,12 @@
 
 from neo4j import GraphDatabase
 
+from src.graph.ontology import DEFAULT_ONTOLOGY
 from src.utils.config import NEO4J_DATABASE, NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME
 
 
-ALLOWED_NODE_LABELS = {
-    "Document", "Chunk", "Person", "Organization", "Topic", "Concept",
-    "Tool", "Project", "Resource",
-}
-
-ALLOWED_REL_TYPES = {
-    "PART_OF", "DISCUSSES", "MENTIONS", "RELATED_TO", "USES", "CREATED_BY",
-    "WORKS_AT", "REFERENCES", "DEPENDS_ON", "APPLIES", "BUILT_ON",
-    "COMPARES_WITH", "REQUIRES",
-}
+ALLOWED_NODE_LABELS = frozenset(DEFAULT_ONTOLOGY.node_labels)
+ALLOWED_REL_TYPES = frozenset(DEFAULT_ONTOLOGY.relationship_types)
 
 
 def get_driver():
@@ -34,7 +27,7 @@ def get_related_content(entity_names: list[str], limit: int = 5) -> list[dict]:
                 """
                 MATCH (chunk:Chunk)-[:DISCUSSES]->(entity)
                 WHERE entity.name IN $names
-                RETURN DISTINCT chunk.name AS name, chunk.source_path AS source
+                RETURN DISTINCT chunk.name AS name, chunk.source_uri AS source
                 LIMIT $limit
                 """,
                 names=names,
@@ -88,15 +81,11 @@ def get_subgraph(entity_names: list[str]) -> tuple[list[dict], list[dict]]:
 
 
 def _safe_label(label: str) -> str:
-    if label not in ALLOWED_NODE_LABELS:
-        raise ValueError(f"Unsupported node label: {label}")
-    return label
+    return DEFAULT_ONTOLOGY.validate_node_label(label)
 
 
 def _safe_rel_type(rel_type: str) -> str:
-    if rel_type not in ALLOWED_REL_TYPES:
-        raise ValueError(f"Unsupported relationship type: {rel_type}")
-    return rel_type
+    return DEFAULT_ONTOLOGY.validate_relationship_type(rel_type)
 
 
 def write_graph(entities: list, relationships: list) -> None:

@@ -26,6 +26,14 @@ async def run_smoke(question: str) -> None:
             tools = await session.list_tools()
             tool_names = [tool.name for tool in tools.tools]
             print("TOOLS:", ", ".join(tool_names))
+            required = {
+                "ask_graphmind", "search_knowledge_base", "search_keywords",
+                "search_metadata", "inspect_source", "query_knowledge_graph",
+                "run_readonly_cypher", "knowledge_stats",
+            }
+            missing = required - set(tool_names)
+            if missing:
+                raise RuntimeError(f"Missing MCP tools: {sorted(missing)}")
 
             stats = await session.call_tool("knowledge_stats", {})
             stats_text = getattr(stats.content[0], "text", "{}")
@@ -34,11 +42,12 @@ async def run_smoke(question: str) -> None:
                 "STATS:",
                 json.dumps(
                     {
-                        "weeks": stats_data.get("weeks"),
                         "vector_documents": stats_data.get("vector_documents"),
                         "graph_nodes": stats_data.get("graph_nodes"),
                         "graph_relationships": stats_data.get("graph_relationships"),
                         "documents": stats_data.get("documents", 0),
+                        "collections": stats_data.get("collections", []),
+                        "source_types": stats_data.get("source_types", []),
                     },
                     indent=2,
                 ),

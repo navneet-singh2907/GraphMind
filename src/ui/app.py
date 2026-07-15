@@ -15,7 +15,7 @@ import streamlit_agraph as _sagraph
 from streamlit_agraph import Config, Edge, Node
 
 from src.retrieval.graph_rag import answer_question
-from src.retrieval.hybrid_langchain import LANGGRAPH_AVAILABLE, answer_hybrid_langgraph
+from src.agent.orchestrator import answer_agentic
 from src.retrieval.vector_rag import answer_question_vector
 
 
@@ -126,7 +126,7 @@ def log_feedback(question: str, pipeline: str, rating: str) -> None:
 def run_hybrid(question: str) -> None:
     st.session_state.hybrid_history.append({"role": "user", "content": question})
     with st.spinner("Routing and retrieving..."):
-        result = answer_hybrid_langgraph(question)
+        result = answer_agentic(question)
     st.session_state.hybrid_history.append({"role": "assistant", **result})
 
 
@@ -179,7 +179,7 @@ with st.sidebar:
         right.markdown(f"**{value:,}**")
 
     st.divider()
-    st.caption("Neo4j GraphRAG · Chroma semantic retrieval · LangGraph routing")
+    st.caption("Neo4j GraphRAG · Chroma semantic retrieval · bounded retrieval agent")
 
 
 st.markdown("## 🧠 GraphMind")
@@ -191,7 +191,7 @@ if hybrid_col.button("Hybrid Assistant", use_container_width=True):
 if compare_col.button("Compare Pipelines", use_container_width=True):
     st.session_state.mode = "compare"
 
-st.caption(f"LangGraph fallback: {'available' if LANGGRAPH_AVAILABLE else 'unavailable'}")
+st.caption("Plan → retrieve → verify → retry: available")
 st.divider()
 
 if not any((st.session_state.hybrid_history, st.session_state.graph_history, st.session_state.vector_history)):
@@ -217,6 +217,19 @@ if st.session_state.mode == "hybrid":
                 if message.get("sources"):
                     with st.expander("Sources"):
                         st.markdown(format_sources(message["sources"]))
+                if message.get("plan"):
+                    with st.expander("Agent plan and verification"):
+                        st.markdown(message["plan"].get("reasoning", ""))
+                        st.json(
+                            {
+                                "calls": message["plan"].get("calls", []),
+                                "verification": message.get("verification", {}),
+                                "attempts": message.get("attempts", 1),
+                            }
+                        )
+                if message.get("trace"):
+                    with st.expander("Retrieval trace"):
+                        st.json(message["trace"])
                 if message.get("cypher"):
                     with st.expander("Cypher"):
                         st.code(message["cypher"], language="cypher")
@@ -256,4 +269,4 @@ else:
         st.rerun()
 
 st.divider()
-st.caption("GraphMind · Generic document knowledge graph · Neo4j + Chroma + LangGraph")
+st.caption("GraphMind · Data-agnostic agentic RAG · Neo4j + Chroma + BM25")

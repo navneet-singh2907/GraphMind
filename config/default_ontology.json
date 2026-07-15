@@ -1,0 +1,38 @@
+{
+  "name": "general_knowledge",
+  "node_labels": {
+    "Document": "An indexed source document",
+    "Chunk": "A retrievable passage within a document",
+    "Person": "A named person",
+    "Organization": "A named company, institution, or group",
+    "Topic": "A broad subject area",
+    "Concept": "A specific idea or method",
+    "Tool": "A named technology, product, framework, or service",
+    "Project": "A named initiative, application, or system",
+    "Resource": "A named external asset, publication, dataset, or reference"
+  },
+  "extraction_labels": [
+    "Person",
+    "Organization",
+    "Topic",
+    "Concept",
+    "Tool",
+    "Project",
+    "Resource"
+  ],
+  "relationship_types": {
+    "PART_OF": "A chunk belongs to a document",
+    "DISCUSSES": "A chunk substantively discusses an entity",
+    "MENTIONS": "A source explicitly mentions an entity",
+    "RELATED_TO": "Two knowledge entities are meaningfully related",
+    "USES": "A project or tool uses another entity",
+    "CREATED_BY": "An entity was created by a person or organization",
+    "WORKS_AT": "A person is affiliated with an organization",
+    "REFERENCES": "A source points to another entity",
+    "DEPENDS_ON": "An entity depends on another entity",
+    "APPLIES": "A project or resource applies a concept or tool",
+    "BUILT_ON": "A tool or project is built on another tool",
+    "COMPARES_WITH": "Two entities are explicitly compared",
+    "REQUIRES": "An entity requires another entity"
+  }
+}

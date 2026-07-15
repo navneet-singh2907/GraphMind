@@ -12,7 +12,6 @@ ENTITIES = [
     {"name": "Vector Search", "type": "Concept"},
     {"name": "Knowledge Graph", "type": "Concept"},
     {"name": "LangChain", "type": "Tool"},
-    {"name": "LangGraph", "type": "Tool"},
     {"name": "Neo4j", "type": "Tool"},
     {"name": "Chroma", "type": "Tool"},
     {"name": "Python", "type": "Tool"},
@@ -23,13 +22,11 @@ ENTITIES = [
 
 RELATIONSHIPS = [
     {"source": "GraphMind", "target": "LangChain", "type": "USES"},
-    {"source": "GraphMind", "target": "LangGraph", "type": "USES"},
     {"source": "GraphMind", "target": "Neo4j", "type": "USES"},
     {"source": "GraphMind", "target": "Chroma", "type": "USES"},
     {"source": "GraphMind", "target": "Python", "type": "USES"},
     {"source": "GraphMind", "target": "GraphRAG", "type": "APPLIES"},
     {"source": "GraphMind", "target": "Hybrid RAG", "type": "APPLIES"},
-    {"source": "LangGraph", "target": "LangChain", "type": "BUILT_ON"},
     {"source": "Neo4j", "target": "Knowledge Graph", "type": "RELATED_TO"},
     {"source": "Chroma", "target": "Vector Search", "type": "RELATED_TO"},
     {"source": "Embeddings", "target": "Vector Search", "type": "RELATED_TO"},

@@ -20,7 +20,10 @@ from mcp.server.fastmcp import FastMCP
 
 from src.retrieval.graph_rag import answer_question as answer_graph
 from src.retrieval.graph_rag import run_cypher
-from src.retrieval.hybrid_langchain import answer_hybrid_langgraph
+from src.agent.orchestrator import answer_agentic
+from src.retrieval.tools import inspect_source as inspect_source_tool
+from src.retrieval.tools import keyword_search as keyword_search_tool
+from src.retrieval.tools import metadata_search as metadata_search_tool
 from src.retrieval.vector_rag import answer_question_vector
 
 
@@ -28,15 +31,17 @@ ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = ROOT / "data" / "processed"
 GRAPH_SEED_PATH = PROCESSED_DIR / "graph_seed.json"
 VECTOR_DOCS_PATH = PROCESSED_DIR / "vector_documents.jsonl"
+INGESTION_MANIFEST_PATH = PROCESSED_DIR / "ingestion_manifest.json"
 
 
 mcp = FastMCP(
     "GraphMind",
     instructions=(
         "GraphMind answers questions over a connected document knowledge base. "
-        "Use ask_graphmind for normal questions, search_knowledge_base for "
-        "source-grounded explanations, query_knowledge_graph for structured "
-        "relationship lookups, and knowledge_stats for inventory."
+        "Use ask_graphmind for planned, verified multi-tool retrieval; "
+        "search_knowledge_base or search_keywords for direct retrieval; "
+        "query_knowledge_graph for structured relationships; search_metadata "
+        "and inspect_source for source discovery; and knowledge_stats for inventory."
     ),
 )
 
@@ -59,6 +64,10 @@ def _summarize_result(result: dict) -> dict:
         "graph_rows": result.get("graph_rows", []),
         "sources": result.get("sources", []),
         "related_content": result.get("related_content", []),
+        "plan": result.get("plan"),
+        "verification": result.get("verification"),
+        "attempts": result.get("attempts"),
+        "trace": result.get("trace", []),
     }
 
 
@@ -80,11 +89,11 @@ def ask_graphmind(question: str) -> dict:
     """
     Ask GraphMind a question about the indexed knowledge base.
 
-    This hybrid tool automatically routes to Neo4j GraphRAG for structured
-    relationship questions or Chroma/Nebius Vector RAG for document-backed
-    explanations and summaries.
+    The bounded retrieval agent plans tool calls, combines semantic, lexical,
+    metadata, source, and graph evidence, verifies sufficiency, and retries once
+    before producing a cited answer.
     """
-    result = _quiet_call(answer_hybrid_langgraph, question)
+    result = _quiet_call(answer_agentic, question)
     return _summarize_result(result)
 
 
@@ -97,6 +106,31 @@ def search_knowledge_base(question: str) -> dict:
     """
     result = _quiet_call(answer_question_vector, question)
     return _summarize_result(result)
+
+
+@mcp.tool()
+def search_keywords(query: str, collection: str | None = None, limit: int = 8) -> dict:
+    """Run exact-term BM25 retrieval over canonical document chunks."""
+    evidence = keyword_search_tool(query=query, collection=collection, k=limit)
+    return {"results": [item.to_dict() for item in evidence], "result_count": len(evidence)}
+
+
+@mcp.tool()
+def search_metadata(
+    query: str = "", collection: str | None = None, source_type: str | None = None, limit: int = 20
+) -> dict:
+    """Find indexed content by title, collection, source type, or parser metadata."""
+    evidence = metadata_search_tool(
+        query=query, collection=collection, source_type=source_type, k=limit
+    )
+    return {"results": [item.to_dict() for item in evidence], "result_count": len(evidence)}
+
+
+@mcp.tool()
+def inspect_source(source_uri: str, limit: int = 50) -> dict:
+    """Read ordered chunks from one indexed source URI."""
+    evidence = inspect_source_tool(source_uri=source_uri, k=limit)
+    return {"results": [item.to_dict() for item in evidence], "result_count": len(evidence)}
 
 
 @mcp.tool()
@@ -120,10 +154,13 @@ def run_readonly_cypher(cypher: str) -> dict:
     precise graph rows beyond the natural-language graph tool.
     """
     first_word = cypher.strip().split(maxsplit=1)[0].upper() if cypher.strip() else ""
-    if first_word not in {"MATCH", "WITH", "RETURN"}:
+    if first_word not in {"MATCH", "OPTIONAL", "WITH", "RETURN", "UNWIND"}:
         return {"error": "Only read-only Cypher queries are allowed."}
 
-    blocked = [" CREATE ", " MERGE ", " DELETE ", " SET ", " REMOVE ", " DROP ", " LOAD CSV "]
+    blocked = [
+        " CREATE ", " MERGE ", " DELETE ", " SET ", " REMOVE ", " DROP ",
+        " LOAD CSV ", " DETACH ", " CALL ", " FOREACH ",
+    ]
     padded = f" {cypher.upper()} "
     if any(token in padded for token in blocked):
         return {"error": "Mutation Cypher is not allowed from the MCP tool."}
@@ -141,6 +178,12 @@ def knowledge_stats() -> dict:
     labels = Counter(node.get("label", "Unknown") for node in seed.get("nodes", []))
     rels = Counter(rel.get("type", "UNKNOWN") for rel in seed.get("relationships", []))
 
+    manifest = {}
+    if INGESTION_MANIFEST_PATH.exists():
+        manifest = json.loads(INGESTION_MANIFEST_PATH.read_text(encoding="utf-8"))
+    collections = sorted({item.get("collection", "default") for item in manifest.values()})
+    source_types = sorted({Path(source).suffix.lower().lstrip(".") for source in manifest})
+
     return {
         "documents": labels.get("Document", 0),
         "chunks": labels.get("Chunk", 0),
@@ -149,6 +192,8 @@ def knowledge_stats() -> dict:
         "graph_relationships": len(seed.get("relationships", [])),
         "node_labels": dict(labels),
         "relationship_types": dict(rels),
+        "collections": collections,
+        "source_types": source_types,
     }
 
 

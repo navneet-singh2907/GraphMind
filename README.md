@@ -1,125 +1,193 @@
 # GraphMind
 
-GraphMind is a connected knowledge assistant that combines GraphRAG and vector search. It indexes documents, builds relationships between entities, and routes each question to the retrieval strategy best suited to answer it.
+GraphMind is an extensible agentic RAG engine for heterogeneous documents. It normalizes supported source formats into one canonical contract, builds semantic and graph indexes, plans retrieval across multiple tools, verifies the collected evidence, and retries before producing a cited answer.
 
-## Why GraphMind
+> **Selling point:** the retrieval architecture is reusable across datasets. Source data is not bundled with the project and no domain-specific schema is hardcoded into the pipeline.
 
-Vector search is useful for summaries and source-grounded explanations. A knowledge graph is better at answering relationship questions such as which concepts, tools, documents, or people are connected. GraphMind combines both approaches behind one interface.
+## What makes it agentic
 
-## Features
-
-- Neo4j knowledge graph for structured relationships
-- Chroma vector store for semantic document retrieval
-- Hybrid routing with LangChain and LangGraph
-- Source-grounded answers with document metadata
-- Streamlit interface for exploration and comparison
-- MCP server for use from compatible AI clients
-- Read-only Cypher tool with mutation safeguards
-
-## Architecture
+GraphMind does more than route a question to one retriever:
 
 ```text
-Documents
-   |
-   +-- preprocessing --> processed JSONL --> Chroma vector store
-   |
-   +-- entity extraction --> graph seed --> Neo4j
-                                      |
-Question --> LangGraph router --------+--> GraphRAG answer
-             |                        |
-             +------------------------+--> Vector RAG answer
+Question
+   ↓
+Plan 1–3 retrieval calls
+   ↓
+Vector + BM25 + Metadata + Source inspection + Graph traversal
+   ↓
+Deduplicate and combine evidence
+   ↓
+Verify sufficiency and confidence
+   ├── insufficient → replan with another tool and retry
+   └── sufficient   → synthesize a cited answer
 ```
 
-## Project Structure
+The loop is deliberately bounded to control latency and cost. The response includes the plan, tool trace, evidence count, verification result, confidence, and number of attempts.
+
+## Data-agnostic ingestion
+
+Every parser implements the same adapter interface and emits the same `DocumentChunk` model.
+
+Supported MVP formats:
+
+| Adapter | Formats |
+|---|---|
+| Plain text | `.txt`, `.md`, `.rst`, `.log`, `.yaml`, `.yml` |
+| Structured text | `.json`, `.jsonl`, `.csv`, `.tsv` |
+| Documents | `.pdf`, `.docx` |
+| Spreadsheets | `.xlsx`, `.xlsm` |
+| Web exports | `.html`, `.htm` |
+
+The canonical record contains:
+
+```json
+{
+  "id": "chunk_...",
+  "document_id": "...",
+  "title": "Architecture",
+  "content": "...",
+  "source_uri": "engineering/architecture.docx",
+  "source_type": "docx",
+  "collection": "engineering",
+  "content_hash": "...",
+  "chunk_index": 0,
+  "metadata": {"parser": "DocxParser"},
+  "schema_version": "1.0"
+}
+```
+
+Downstream indexing and retrieval operate only on this contract. Adding a format requires a parser adapter, not changes to the retrieval system.
+
+## Incremental indexing
+
+Ingestion creates a SHA-256 content hash for each source and stores an ingestion manifest. Unchanged sources reuse their existing chunks; changed sources are reparsed; deleted sources disappear from the rebuilt canonical output.
+
+```powershell
+python scripts\preprocess_raw_data.py
+python scripts\preprocess_raw_data.py --collection engineering
+python scripts\preprocess_raw_data.py --force
+```
+
+Generated indexes, manifests, source files, credentials, and database content are excluded from Git.
+
+## Configurable knowledge graph
+
+The ontology is defined in [`config/default_ontology.json`](config/default_ontology.json), not Python. It controls:
+
+- allowed node labels;
+- extractable entity labels;
+- allowed relationship types;
+- descriptions supplied to extraction and Cypher generation.
+
+Set `ONTOLOGY_PATH` to use a dataset-specific ontology while keeping the architecture unchanged.
+
+## Retrieval tools
+
+| Tool | Best use |
+|---|---|
+| `vector_search` | Semantic similarity, paraphrases, explanations |
+| `keyword_search` | Exact terminology, identifiers, quotations |
+| `metadata_search` | Titles, formats, collections, parser metadata |
+| `inspect_source` | Ordered reading of a known source |
+| `graph_search` | Relationships and multi-hop questions |
+
+The default keyword retriever is a dependency-free BM25 implementation. Vector retrieval uses Chroma, and relationship retrieval uses Neo4j.
+
+## Project structure
 
 ```text
 GraphMind/
-|-- src/
-|   |-- graph/          # Graph extraction and Neo4j access
-|   |-- ingestion/      # Loading, cleaning, and preprocessing
-|   |-- retrieval/      # Graph, vector, and hybrid retrieval
-|   |-- ui/             # Streamlit application
-|   |-- utils/          # Configuration and embeddings
-|   `-- mcp_server.py   # MCP tools and resources
-|-- scripts/            # Processing, evaluation, and smoke tests
-|-- .env.example
-|-- requirements.txt
-`-- run_mcp_server.bat
+├── config/
+│   └── default_ontology.json
+├── src/
+│   ├── agent/          # plan, retrieve, verify, retry, synthesize
+│   ├── graph/          # configurable ontology and Neo4j access
+│   ├── ingestion/      # canonical models, parser registry, incremental pipeline
+│   ├── retrieval/      # vector, BM25, metadata, source, and graph tools
+│   ├── ui/             # Streamlit application
+│   └── mcp_server.py   # agent and direct retrieval tools over MCP
+├── scripts/
+├── tests/
+├── .env.example
+└── requirements.txt
 ```
 
 ## Setup
 
-### 1. Create a virtual environment
-
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-```
-
-### 2. Install dependencies
-
-```powershell
 pip install -r requirements.txt
-```
-
-### 3. Configure environment variables
-
-```powershell
 Copy-Item .env.example .env
 ```
 
-Set your model provider and Neo4j credentials in `.env`. Never commit that file.
+Configure the model provider and Neo4j credentials in `.env`.
 
-### 4. Add documents
-
-Place source documents under `data/raw/`. The `data/`, `chroma_db/`, and `.env` paths are intentionally ignored so private source material and local indexes are not published.
-
-### 5. Process documents
+Place authorized source documents under `data/raw/`, then run:
 
 ```powershell
 python scripts\preprocess_raw_data.py
+python scripts\extract_graph_from_processed.py --write-neo4j --clear
+python -c "from src.retrieval.vector_rag import build_vector_store; build_vector_store()"
 ```
 
-To build or load the graph:
-
-```powershell
-python scripts\extract_graph_from_processed.py --write-neo4j
-```
-
-### 6. Run the application
+Start the UI:
 
 ```powershell
 streamlit run src\ui\app.py
 ```
 
-## MCP Server
-
-Start the MCP server directly:
+## MCP server
 
 ```powershell
 python -m src.mcp_server
 ```
 
-Or on Windows:
+Primary tools:
+
+- `ask_graphmind` — planned and verified multi-tool retrieval
+- `search_knowledge_base` — direct semantic retrieval
+- `search_keywords` — direct BM25 retrieval
+- `search_metadata` — source discovery and filtering
+- `inspect_source` — ordered source reading
+- `query_knowledge_graph` — natural-language GraphRAG
+- `run_readonly_cypher` — guarded Cypher
+- `knowledge_stats` — collections, source types, and index inventory
+
+## Tests
 
 ```powershell
-.\run_mcp_server.bat
+python -m unittest discover -s tests -v
 ```
 
-Available tools:
+Tests cover parser registration, canonical records, incremental ingestion, HTML cleaning, BM25 ranking, ontology validation, and the agent workflow.
 
-- `ask_graphmind` — automatically selects graph or vector retrieval
-- `search_knowledge_base` — performs semantic source retrieval
-- `query_knowledge_graph` — answers structured relationship questions
-- `run_readonly_cypher` — runs guarded read-only Cypher
-- `knowledge_stats` — reports the current index and graph inventory
+For cross-dataset evaluation, copy `evaluation/questions.example.json`, add questions and expected terms for each corpus, and run:
 
-Use [mcp_config.example.json](mcp_config.example.json) as a portable configuration example.
+```powershell
+python scripts\evaluate_agent.py --dataset evaluation\questions.example.json
+```
+
+The JSON report records sufficiency rate, grounded-answer rate, confidence, lexical term recall, latency, attempts, plans, and tool traces. Run the same harness against unrelated collections to demonstrate that performance comes from the architecture rather than one dataset.
+
+## Honest scope
+
+GraphMind is an architecture-focused MVP, not a claim of universal ingestion or production-scale infrastructure.
+
+Current limitations:
+
+- no OCR for scanned PDFs or images;
+- no live website, API, SQL, or cloud-storage connectors;
+- local synchronous ingestion rather than a distributed task queue;
+- local Chroma and Neo4j defaults rather than managed multi-tenant infrastructure;
+- model-provider configuration currently follows the OpenAI-compatible Nebius interface.
+
+The parser registry, canonical contract, collection isolation, content hashing, configurable ontology, and retrieval-tool interface provide clean extension points for those capabilities.
 
 ## Privacy
 
-GraphMind does not include source documents, processed datasets, local vector stores, credentials, or database exports. Confirm that you have permission to index and share any documents you add.
+Only code and example configuration belong in this repository. Do not commit source documents, processed chunks, vector stores, database exports, or `.env` credentials. Confirm that you have permission to process every indexed source.
 
 ## License
 
-This project is available under the MIT License. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

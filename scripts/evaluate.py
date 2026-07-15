@@ -20,7 +20,7 @@ TEST_QUESTIONS = [
     ("Which concepts are connected to GraphRAG?",       "graph",  "entity lookup"),
     ("What tools does GraphMind use?",                  "graph",  "relationship traversal"),
     ("Which resources discuss knowledge graphs?",       "graph",  "relationship traversal"),
-    ("How are LangChain and LangGraph connected?",      "graph",  "structural"),
+    ("How are semantic and graph retrieval connected?", "graph",  "structural"),
     ("Which concepts relate to vector search?",         "graph",  "structural"),
     ("What is retrieval-augmented generation?",         "vector", "concept definition"),
     ("How does GraphRAG differ from vector RAG?",       "both",   "content recall"),

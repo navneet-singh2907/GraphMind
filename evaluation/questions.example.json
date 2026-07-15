@@ -1,0 +1,12 @@
+[
+  {
+    "question": "Which documents discuss vector search?",
+    "expected_terms": ["vector", "document"],
+    "collection": null
+  },
+  {
+    "question": "How does the system combine semantic and graph retrieval?",
+    "expected_terms": ["semantic", "graph"],
+    "collection": null
+  }
+]

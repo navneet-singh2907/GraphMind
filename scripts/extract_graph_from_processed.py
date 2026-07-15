@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.graph.neo4j_client import clear_graph, write_knowledge_graph
+from src.graph.ontology import DEFAULT_ONTOLOGY
 from src.utils.config import LLM_MODEL, NEBIUS_API_KEY, NEBIUS_BASE_URL
 
 
@@ -22,17 +23,9 @@ PROCESSED_DIR = Path("data/processed")
 DOCUMENT_CHUNKS_PATH = PROCESSED_DIR / "document_chunks.jsonl"
 GRAPH_SEED_PATH = PROCESSED_DIR / "graph_seed.json"
 
-NODE_LABELS = [
-    "Document", "Chunk", "Person", "Organization", "Topic", "Concept",
-    "Tool", "Project", "Resource",
-]
-EXTRACTABLE_NODE_LABELS = [
-    "Person", "Organization", "Topic", "Concept", "Tool", "Project", "Resource",
-]
-RELATIONSHIP_TYPES = [
-    "PART_OF", "DISCUSSES", "MENTIONS", "RELATED_TO", "USES", "CREATED_BY",
-    "WORKS_AT", "REFERENCES", "DEPENDS_ON", "APPLIES",
-]
+NODE_LABELS = list(DEFAULT_ONTOLOGY.node_labels)
+EXTRACTABLE_NODE_LABELS = list(DEFAULT_ONTOLOGY.extraction_labels)
+RELATIONSHIP_TYPES = list(DEFAULT_ONTOLOGY.relationship_types)
 
 PROMPT = """Extract a knowledge graph from the document chunk below.
 
@@ -93,8 +86,8 @@ def base_nodes_and_relationships(records: list[dict]) -> tuple[dict, list[dict]]
         nodes[document_id] = {
             "id": document_id,
             "label": "Document",
-            "name": record.get("title") or record.get("source_path"),
-            "source_path": record.get("source_path"),
+            "name": record.get("title") or record.get("source_uri"),
+            "source_uri": record.get("source_uri"),
             "source_type": record.get("source_type"),
             "collection": record.get("collection"),
         }
@@ -102,7 +95,7 @@ def base_nodes_and_relationships(records: list[dict]) -> tuple[dict, list[dict]]
             "id": chunk_id,
             "label": "Chunk",
             "name": f"{record.get('title', 'Document')} chunk {record.get('chunk_index', 0) + 1}",
-            "source_path": record.get("source_path"),
+            "source_uri": record.get("source_uri"),
             "chunk_index": record.get("chunk_index"),
         }
         relationships.append({"source": chunk_id, "target": document_id, "type": "PART_OF"})
@@ -132,7 +125,7 @@ def extract_record(client: OpenAI, record: dict) -> dict:
         collection=record.get("collection"),
         source_type=record.get("source_type"),
         record_id=record.get("id"),
-        text=record.get("text", "")[:6000],
+        text=record.get("content", "")[:6000],
     )
     response = client.chat.completions.create(
         model=LLM_MODEL,

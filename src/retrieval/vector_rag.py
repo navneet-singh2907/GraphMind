@@ -59,6 +59,12 @@ def _source_display_name(source_path: str) -> str:
     return name or source_path
 
 
+def _chroma_value(value):
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
 def _load_processed_vector_documents() -> list[Document]:
     if not os.path.exists(PROCESSED_VECTOR_PATH):
         return []
@@ -70,12 +76,17 @@ def _load_processed_vector_documents() -> list[Document]:
                 continue
             record = json.loads(line)
             metadata = {
-                key: value
+                key: _chroma_value(value)
                 for key, value in record.items()
-                if key != "text" and value is not None
+                if key not in {"content", "text", "metadata"} and value is not None
             }
-            metadata["source"] = record.get("source_path", "unknown")
-            documents.append(Document(page_content=record.get("text", ""), metadata=metadata))
+            for key, value in record.get("metadata", {}).items():
+                if value is not None:
+                    metadata[f"meta_{key}"] = _chroma_value(value)
+            metadata["source"] = record.get("source_uri") or record.get("source_path", "unknown")
+            documents.append(
+                Document(page_content=record.get("content") or record.get("text", ""), metadata=metadata)
+            )
     return documents
 
 
@@ -136,14 +147,27 @@ def load_vector_store():
     )
 
 
+def semantic_search(question: str, k: int = 8, filters: dict | None = None) -> list[Document]:
+    search_kwargs: dict = {"k": k}
+    if filters:
+        search_kwargs["filter"] = filters
+    return load_vector_store().as_retriever(search_kwargs=search_kwargs).invoke(question)
+
+
 def answer_question_vector(question: str) -> dict:
-    retriever = load_vector_store().as_retriever(search_kwargs={"k": 8})
-    documents = retriever.invoke(question)
+    try:
+        documents = semantic_search(question)
+    except Exception as exc:
+        return {
+            "question": question,
+            "answer": f"Semantic retrieval is unavailable: {exc}",
+            "sources": [],
+        }
 
     context_blocks = []
     sources: dict[str, dict] = {}
     for document in documents:
-        source = document.metadata.get("source") or document.metadata.get("source_path", "unknown")
+        source = document.metadata.get("source") or document.metadata.get("source_uri", "unknown")
         title = document.metadata.get("title") or _source_display_name(source)
         collection = document.metadata.get("collection", "")
         context_blocks.append(f"Source: {title} ({source})\n{document.page_content}")
