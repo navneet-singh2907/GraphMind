@@ -8,6 +8,7 @@ from src.agent.orchestrator import RetrievalPlan, ToolCall, Verification, answer
 from src.graph.ontology import DEFAULT_ONTOLOGY, load_ontology
 from src.retrieval.keyword_search import KeywordIndex
 from src.retrieval.models import Evidence
+from src.retrieval.graph_rag import query_graph
 
 
 class RetrievalTests(unittest.TestCase):
@@ -50,6 +51,30 @@ class RetrievalTests(unittest.TestCase):
             ontology = load_ontology(path)
             self.assertEqual(ontology.name, "legal")
             self.assertIn("Clause", ontology.extraction_labels)
+
+    @patch("src.retrieval.graph_rag.run_cypher")
+    @patch("src.retrieval.graph_rag.generate_cypher")
+    def test_graph_query_retries_after_neo4j_rejects_cypher(self, mock_generate, mock_run):
+        mock_generate.side_effect = ["MATCH bad RETURN bad", "MATCH good RETURN good"]
+        mock_run.side_effect = [ValueError("expected Path but was List<Path>"), [{"good": "result"}]]
+
+        cypher, rows = query_graph("How are the services connected?")
+
+        self.assertEqual(cypher, "MATCH good RETURN good")
+        self.assertEqual(rows, [{"good": "result"}])
+        self.assertIn("expected Path", mock_generate.call_args_list[1].kwargs["correction"])
+
+    @patch("src.retrieval.graph_rag.run_cypher")
+    @patch("src.retrieval.graph_rag.generate_cypher")
+    def test_graph_query_broadens_valid_empty_query(self, mock_generate, mock_run):
+        mock_generate.side_effect = ["MATCH narrow RETURN narrow", "MATCH broad RETURN broad"]
+        mock_run.side_effect = [[], [{"connected": "Retrieval Engine"}]]
+
+        cypher, rows = query_graph("What is connected to Gateway?")
+
+        self.assertEqual(cypher, "MATCH broad RETURN broad")
+        self.assertEqual(rows, [{"connected": "Retrieval Engine"}])
+        self.assertIn("returned no rows", mock_generate.call_args_list[1].kwargs["correction"])
 
     @patch("src.agent.orchestrator.synthesize_answer", return_value="Grounded answer [S1]")
     @patch("src.agent.orchestrator.verify_evidence", return_value=Verification(True, 0.9, ""))

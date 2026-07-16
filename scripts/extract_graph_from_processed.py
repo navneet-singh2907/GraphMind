@@ -7,14 +7,12 @@ import json
 import re
 import sys
 from pathlib import Path
-
-from openai import OpenAI
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.graph.neo4j_client import clear_graph, write_knowledge_graph
 from src.graph.ontology import DEFAULT_ONTOLOGY
 from src.utils.config import LLM_MODEL, NEBIUS_API_KEY, NEBIUS_BASE_URL
 
@@ -117,7 +115,7 @@ def dedupe_relationships(relationships: list[dict]) -> list[dict]:
     return result
 
 
-def extract_record(client: OpenAI, record: dict) -> dict:
+def extract_record(client: Any, record: dict) -> dict:
     prompt = PROMPT.format(
         node_labels=", ".join(EXTRACTABLE_NODE_LABELS),
         relationship_types=", ".join(RELATIONSHIP_TYPES),
@@ -176,6 +174,8 @@ def build_graph_seed(
         extraction_records = extraction_records[:limit]
 
     if not base_only:
+        from openai import OpenAI
+
         client = OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
         for index, record in enumerate(extraction_records, start=1):
             print(f"Extracting graph items {index}/{len(extraction_records)}: {record['id']}")
@@ -254,6 +254,8 @@ def main() -> None:
     )
 
     if args.write_neo4j:
+        from src.graph.neo4j_client import clear_graph, write_knowledge_graph
+
         if args.clear:
             clear_graph()
         write_knowledge_graph(graph["nodes"], graph["relationships"])

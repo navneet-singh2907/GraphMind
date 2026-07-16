@@ -60,9 +60,13 @@ Rules:
 - Use the exact labels and relationship types from the schema.
 - Limit results to at most 20 rows.
 - Prefer case-insensitive CONTAINS when names may vary.
+- When an entity is identified by name but its label is uncertain, omit the label and match `(entity)` by its `name` property. Do not guess a label from capitalization or wording.
+- For variable-length traversal, bind the path in MATCH (for example `MATCH path = (a)-[:USES*1..2]-(b)`) before calling `length(path)`; never call `length()` on a parenthesized pattern expression.
+- Bind relationship variables explicitly (for example `(a)-[relationship:USES]->(b)`). The `type()` function accepts a relationship variable only; never pass a node or path variable to `type()`.
 - Return `RETURN "NO_MATCH" AS result` only when the schema cannot answer the question.
 
 Question: {question}
+{correction}
 """
 
 ANSWER_PROMPT = """You are GraphMind, a helpful assistant for a connected knowledge base.
@@ -80,8 +84,12 @@ Name specific entities and sources when available. If the graph returned no usef
 """
 
 
-def generate_cypher(question: str) -> str:
-    prompt = CYPHER_PROMPT.format(schema=GRAPH_SCHEMA, question=question)
+def generate_cypher(question: str, correction: str = "") -> str:
+    prompt = CYPHER_PROMPT.format(
+        schema=GRAPH_SCHEMA,
+        question=question,
+        correction=correction,
+    )
     response = _client().chat.completions.create(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
@@ -127,9 +135,35 @@ def run_cypher(cypher: str) -> list[dict]:
         driver.close()
 
 
+def query_graph(question: str, max_attempts: int = 3) -> tuple[str, list[dict]]:
+    """Generate and execute read-only Cypher, correcting one database-rejected query."""
+    correction = ""
+    last_error: Exception | None = None
+    for attempt in range(max(1, max_attempts)):
+        cypher = generate_cypher(question, correction=correction)
+        try:
+            rows = run_cypher(cypher)
+            if rows or attempt == max(1, max_attempts) - 1:
+                return cypher, rows
+            correction = (
+                "The previous query was valid but returned no rows. Broaden it while keeping the original intent: "
+                "remove uncertain node labels, allow relevant relationship types, and match named entities "
+                "case-insensitively.\n"
+                f"Previous query: {cypher[:2000]}"
+            )
+        except Exception as exc:
+            last_error = exc
+            correction = (
+                "The previous query was rejected by Neo4j. Correct it using the schema and rules above.\n"
+                f"Previous query: {cypher[:2000]}\n"
+                f"Neo4j error: {str(exc)[:1200]}"
+            )
+    raise RuntimeError(f"Neo4j rejected the generated query after {max_attempts} attempts: {last_error}")
+
+
 def answer_question(question: str) -> dict:
     try:
-        cypher = generate_cypher(question)
+        cypher, rows = query_graph(question)
     except Exception as exc:
         message = f"Graph retrieval is unavailable: {exc}"
         return {
@@ -153,7 +187,6 @@ def answer_question(question: str) -> dict:
             "related_content": [],
         }
 
-    rows = run_cypher(cypher)
     graph_data = str(rows) if rows else "No results found."
     response = _client().chat.completions.create(
         model=LLM_MODEL,

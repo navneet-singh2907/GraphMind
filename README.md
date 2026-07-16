@@ -2,7 +2,7 @@
 
 GraphMind is an extensible agentic RAG engine for heterogeneous documents. It normalizes supported source formats into one canonical contract, builds semantic and graph indexes, plans retrieval across multiple tools, verifies the collected evidence, and retries before producing a cited answer.
 
-> **Selling point:** the retrieval architecture is reusable across datasets. Source data is not bundled with the project and no domain-specific schema is hardcoded into the pipeline.
+> **Selling point:** the retrieval architecture is reusable across datasets. The only bundled sources are a clearly labeled synthetic demo corpus; no customer data or domain-specific schema is hardcoded into the pipeline.
 
 ## What makes it agentic
 
@@ -70,6 +70,18 @@ python scripts\preprocess_raw_data.py --force
 
 Generated indexes, manifests, source files, credentials, and database content are excluded from Git.
 
+## Bundled multi-format demo
+
+[`demo_data/`](demo_data/) contains a fully fictional HelioDesk corpus across Markdown, CSV, JSON, HTML, DOCX, XLSX, and PDF. The facts connect across files so you can test exact lookup, cross-source synthesis, pricing calculations, incident questions, and later graph relationships without relying on private material.
+
+Ingest it and run a local keyword smoke test:
+
+```powershell
+python scripts\bootstrap_demo.py --force
+```
+
+This first stage needs neither Neo4j nor model credentials. It creates canonical chunks under `data/processed/` and proves the format adapters and BM25 retrieval path.
+
 ## Configurable knowledge graph
 
 The ontology is defined in [`config/default_ontology.json`](config/default_ontology.json), not Python. It controls:
@@ -121,7 +133,15 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Configure the model provider and Neo4j credentials in `.env`.
+Configure credentials in `.env` only for the layers you want to run.
+
+The recommended order is:
+
+1. **No external services:** ingest sources and test keyword/metadata/source inspection.
+2. **Model credentials, no Neo4j:** build Chroma embeddings and test semantic retrieval.
+3. **Model credentials plus Neo4j:** extract entities and relationships, write them to Neo4j, and enable graph retrieval.
+
+Neo4j is therefore required only at step 3. Connect it after canonical ingestion and local retrieval are working, immediately before running the graph extraction command with `--write-neo4j`.
 
 Place authorized source documents under `data/raw/`, then run:
 
@@ -168,6 +188,8 @@ For cross-dataset evaluation, copy `evaluation/questions.example.json`, add ques
 python scripts\evaluate_agent.py --dataset evaluation\questions.example.json
 ```
 
+The bundled corpus already has a six-question set at `evaluation/heliodesk_demo.json`.
+
 The JSON report records sufficiency rate, grounded-answer rate, confidence, lexical term recall, latency, attempts, plans, and tool traces. Run the same harness against unrelated collections to demonstrate that performance comes from the architecture rather than one dataset.
 
 ## Honest scope
@@ -186,7 +208,7 @@ The parser registry, canonical contract, collection isolation, content hashing, 
 
 ## Privacy
 
-Only code and example configuration belong in this repository. Do not commit source documents, processed chunks, vector stores, database exports, or `.env` credentials. Confirm that you have permission to process every indexed source.
+Only code, example configuration, and the explicitly synthetic files in `demo_data/` belong in this repository. Do not commit private source documents, processed chunks, vector stores, database exports, or `.env` credentials. Confirm that you have permission to process every non-demo source.
 
 ## License
 

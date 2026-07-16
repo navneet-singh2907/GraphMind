@@ -1,0 +1,32 @@
+[
+  {
+    "question": "Which service owns audit events and what is its recovery target?",
+    "expected_terms": ["Audit Store", "Trust Team", "30"],
+    "collection": null
+  },
+  {
+    "question": "What changed after incident HD-2026-04-17?",
+    "expected_terms": ["cache", "canary", "tenant-route"],
+    "collection": "reliability"
+  },
+  {
+    "question": "Which plan includes SAML SSO and EU data residency?",
+    "expected_terms": ["Enterprise", "SAML", "eu-west"],
+    "collection": null
+  },
+  {
+    "question": "Who approves the pilot exit and what quality target must be met?",
+    "expected_terms": ["Jon Bell", "90", "grounded"],
+    "collection": "strategy"
+  },
+  {
+    "question": "How do the Gateway, Retrieval Engine, and Audit Store depend on one another?",
+    "expected_terms": ["Gateway", "Retrieval Engine", "Audit Store", "Event Bus"],
+    "collection": "engineering"
+  },
+  {
+    "question": "What is the annual cost for the Growth scenario with 80 agents?",
+    "expected_terms": ["13,428", "Growth", "80"],
+    "collection": "finance"
+  }
+]

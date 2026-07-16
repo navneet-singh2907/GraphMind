@@ -1,0 +1,45 @@
+{
+  "product": "HelioDesk",
+  "vendor": "Asteria Systems",
+  "release": "2026.2",
+  "description": "A fictional support workspace used to demonstrate cross-format retrieval.",
+  "plans": [
+    {
+      "name": "Starter",
+      "included_agents": 10,
+      "monthly_base_usd": 149,
+      "extra_agent_usd": 18,
+      "features": ["ticket search", "guided answers", "email sign-in"],
+      "audit_retention_days": 30,
+      "data_residency": ["us-east"]
+    },
+    {
+      "name": "Growth",
+      "included_agents": 50,
+      "monthly_base_usd": 699,
+      "extra_agent_usd": 14,
+      "features": ["ticket search", "guided answers", "workflow automation", "priority support"],
+      "audit_retention_days": 180,
+      "data_residency": ["us-east"]
+    },
+    {
+      "name": "Enterprise",
+      "included_agents": 200,
+      "monthly_base_usd": 2499,
+      "extra_agent_usd": 10,
+      "features": ["ticket search", "guided answers", "workflow automation", "SAML SSO", "EU data residency", "dedicated success manager"],
+      "audit_retention_days": 400,
+      "data_residency": ["us-east", "eu-west"]
+    }
+  ],
+  "integrations": [
+    {"name": "Zendesk export", "mode": "scheduled file import", "formats": ["json", "csv"]},
+    {"name": "Knowledge folder", "mode": "watched upload", "formats": ["pdf", "docx", "html", "md"]},
+    {"name": "Webhook", "mode": "event delivery", "formats": ["json"]}
+  ],
+  "guardrails": {
+    "tenant_filtering": "Applied before retrieval ranking",
+    "action_approval": "A human agent must confirm any external reply",
+    "graph_fallback": "Vector and keyword retrieval remain available when Neo4j is offline"
+  }
+}

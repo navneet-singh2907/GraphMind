@@ -1,0 +1,8 @@
+service_id,service_name,purpose,owner,primary_dependency,region,availability_target,recovery_time_target_minutes,recovery_point_target_minutes,on_call_channel
+HD-GW,Gateway,Authenticates and routes tenant requests,Platform Team,Retrieval Engine,us-east and eu-west,99.95%,15,5,#heliodesk-platform
+HD-RE,Retrieval Engine,Finds evidence across indexed sources,Search Team,Knowledge Index,us-east and eu-west,99.95%,30,15,#heliodesk-search
+HD-WW,Workflow Worker,Executes approved support actions,Automation Team,Event Bus,us-east and eu-west,99.90%,60,15,#heliodesk-automation
+HD-AS,Audit Store,Stores authentication retrieval and workflow audit events,Trust Team,PostgreSQL,us-east and eu-west,99.99%,30,0,#heliodesk-trust
+HD-KI,Knowledge Index,Stores document chunks and embeddings,Search Team,Chroma,us-east and eu-west,99.90%,60,30,#heliodesk-search
+HD-RG,Relationship Graph,Stores normalized entities and relationships,Knowledge Team,Neo4j,us-east,99.50%,240,60,#heliodesk-knowledge
+HD-EB,Event Bus,Transports workflow and audit events,Platform Team,Redis Streams,us-east and eu-west,99.95%,15,5,#heliodesk-platform

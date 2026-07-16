@@ -107,10 +107,10 @@ def inspect_source(source_uri: str, k: int = 50, **_: Any) -> list[Evidence]:
 
 
 def graph_search(query: str, k: int = 20, **_: Any) -> list[Evidence]:
-    from src.retrieval.graph_rag import generate_cypher, run_cypher
+    from src.retrieval.graph_rag import query_graph
 
-    cypher = generate_cypher(query)
-    rows = run_cypher(cypher)[:k]
+    cypher, rows = query_graph(query)
+    rows = rows[:k]
     return [
         Evidence(
             tool="graph_search",

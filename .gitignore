@@ -28,6 +28,8 @@ logs/
 # Generated artifacts
 *.docx
 *.pdf
+!demo_data/**/*.docx
+!demo_data/**/*.pdf
 docs/linkedin_images/
 
 # Editors and operating systems
