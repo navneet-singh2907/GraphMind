@@ -157,6 +157,34 @@ Start the UI:
 streamlit run src\ui\app.py
 ```
 
+## Container deployment
+
+GraphMind includes a non-root production container for temporary staging deployments. At startup,
+the container processes only the bundled synthetic demo corpus and builds an ephemeral Chroma
+index. The Neo4j graph remains an external managed dependency and must be loaded into a dedicated
+Neo4j database before deployment.
+
+Build and run the image locally:
+
+```powershell
+docker build -t graphmind:local .
+docker run --rm -p 8501:8501 --env-file .env graphmind:local
+```
+
+Open `http://localhost:8501` and verify the container health endpoint at
+`http://localhost:8501/_stcore/health`.
+
+Runtime requirements:
+
+- inject `NEBIUS_API_KEY` and Neo4j credentials through the platform secret manager;
+- never copy `.env`, local source data, generated indexes, or credentials into the image;
+- allow outbound HTTPS/Bolt traffic to Nebius and the managed Neo4j database;
+- allow up to five minutes for the initial synthetic vector-index bootstrap;
+- treat the local Chroma directory as ephemeral and rebuildable.
+
+Set `GRAPHMIND_BOOTSTRAP_DEMO=false` only when the container is supplied with separately managed
+processed and vector indexes.
+
 ## MCP server
 
 ```powershell
