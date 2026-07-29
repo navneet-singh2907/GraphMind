@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -6,6 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8501
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN python -m pip install --no-cache-dir -r requirements.txt
