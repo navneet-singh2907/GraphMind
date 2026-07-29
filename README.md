@@ -4,6 +4,13 @@ GraphMind is an extensible agentic RAG engine for heterogeneous documents. It no
 
 > **Selling point:** the retrieval architecture is reusable across datasets. The only bundled sources are a clearly labeled synthetic demo corpus; no customer data or domain-specific schema is hardcoded into the pipeline.
 
+## Demo interface
+
+GraphMind provides a hybrid assistant and a side-by-side comparison of GraphRAG and vector RAG.
+The live graph inventory is read from Neo4j rather than hardcoded in the interface.
+
+![GraphMind comparing GraphRAG and vector RAG](docs/screenshots/graphmind-pipeline-comparison.png)
+
 ## What makes it agentic
 
 GraphMind does more than route a question to one retriever:
@@ -185,6 +192,51 @@ Runtime requirements:
 
 Set `GRAPHMIND_BOOTSTRAP_DEMO=false` only when the container is supplied with separately managed
 processed and vector indexes.
+
+## AWS deployment evidence
+
+GraphMind was validated in a temporary AWS staging environment using:
+
+- an immutable, commit-tagged image in Amazon ECR;
+- a non-root distroless Python runtime;
+- Amazon ECS Fargate behind an Application Load Balancer;
+- AWS Secrets Manager for Nebius and Neo4j runtime credentials;
+- CloudWatch Logs with bounded retention;
+- Neo4j Aura as the managed relationship graph.
+
+The deployment ran one health-checked Fargate task and served the synthetic demo corpus through the
+same agentic retrieval workflow used locally. The screenshots are retained as deployment evidence;
+the public staging resources are intentionally temporary and can be removed after recording the
+demo.
+
+### Source-grounded Agentic RAG
+
+The deployed assistant retrieves across the synthetic corpus, cites supporting sources, and states
+limitations when the available evidence is incomplete.
+
+![GraphMind returning a cited Agentic RAG answer](docs/screenshots/graphmind-agentic-answer.png)
+
+### Inspectable evidence and verification
+
+Each response exposes its source list, agent plan, verification result, and retrieval trace.
+
+![GraphMind sources, plan, verification, and retrieval trace](docs/screenshots/graphmind-sources-and-verification.png)
+
+### ECS Fargate service
+
+The staging cluster reached a steady state with one active service and one running task.
+
+![GraphMind running as an Amazon ECS Fargate service](docs/screenshots/aws-ecs-service.png)
+
+### Container security scan
+
+The final distroless image completed its Amazon ECR scan with zero critical, high, medium, low, or
+informational findings at scan time.
+
+![Amazon ECR scan showing zero vulnerability findings](docs/screenshots/aws-ecr-zero-findings.png)
+
+The captured endpoint used HTTP for a short-lived demonstration. A persistent production deployment
+should add an authenticated access layer and terminate HTTPS with an ACM certificate.
 
 ## MCP server
 
