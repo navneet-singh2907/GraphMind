@@ -70,6 +70,8 @@ def prepare_demo_indexes() -> None:
 def start_streamlit() -> None:
     port = validated_port()
     command = [
+        sys.executable,
+        "-m",
         "streamlit",
         "run",
         "src/ui/app.py",
@@ -77,6 +79,7 @@ def start_streamlit() -> None:
         f"--server.port={port}",
         "--server.headless=true",
         "--browser.gatherUsageStats=false",
+        "--global.developmentMode=false",
     ]
     print(f"GraphMind startup: listening on 0.0.0.0:{port}.", flush=True)
     os.execvp(command[0], command)
