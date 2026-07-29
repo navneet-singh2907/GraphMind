@@ -1,13 +1,24 @@
 import json
 from openai import OpenAI
 from src.graph.ontology import DEFAULT_ONTOLOGY
-from src.utils.config import NEBIUS_API_KEY, NEBIUS_BASE_URL, LLM_MODEL
+from src.utils.config import (
+    LLM_MODEL,
+    MODEL_MAX_RETRIES,
+    MODEL_TIMEOUT_SECONDS,
+    NEBIUS_API_KEY,
+    NEBIUS_BASE_URL,
+)
 from src.utils.entity_resolver import resolve_entities
 
 def _client() -> OpenAI:
     if not NEBIUS_API_KEY:
         raise RuntimeError("NEBIUS_API_KEY is not configured")
-    return OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
+    return OpenAI(
+        api_key=NEBIUS_API_KEY,
+        base_url=NEBIUS_BASE_URL,
+        timeout=MODEL_TIMEOUT_SECONDS,
+        max_retries=MODEL_MAX_RETRIES,
+    )
 
 ENTITY_TYPES = list(DEFAULT_ONTOLOGY.extraction_labels)
 RELATIONSHIP_TYPES = list(DEFAULT_ONTOLOGY.relationship_types)

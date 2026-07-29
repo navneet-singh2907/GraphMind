@@ -8,7 +8,7 @@ from src.agent.orchestrator import RetrievalPlan, ToolCall, Verification, answer
 from src.graph.ontology import DEFAULT_ONTOLOGY, load_ontology
 from src.retrieval.keyword_search import KeywordIndex
 from src.retrieval.models import Evidence
-from src.retrieval.graph_rag import query_graph
+from src.retrieval.graph_rag import CYPHER_PROMPT, _validate_readonly_cypher, query_graph
 
 
 class RetrievalTests(unittest.TestCase):
@@ -25,6 +25,31 @@ class RetrievalTests(unittest.TestCase):
         self.assertIn("Chunk", DEFAULT_ONTOLOGY.node_labels)
         self.assertIn("PART_OF", DEFAULT_ONTOLOGY.relationship_types)
         self.assertIn("DISCUSSES", DEFAULT_ONTOLOGY.relationship_types)
+
+    def test_cypher_prompt_does_not_guess_label_for_named_entity(self):
+        self.assertIn("MATCH (entity)-[relationship:USES]->(tool:Tool)", CYPHER_PROMPT)
+        self.assertIn("always\n  omit the label", CYPHER_PROMPT)
+
+    def test_cypher_schema_guard_accepts_known_schema(self):
+        valid, reason = _validate_readonly_cypher(
+            'MATCH (entity)-[:USES]->(tool:Tool) '
+            'WHERE toLower(entity.name) CONTAINS "guide" '
+            "RETURN entity.name, tool.name LIMIT 20"
+        )
+        self.assertTrue(valid)
+        self.assertIsNone(reason)
+
+    def test_cypher_schema_guard_rejects_unknown_schema(self):
+        examples = [
+            "MATCH (service:Service) RETURN service.name LIMIT 20",
+            "MATCH (entity)-[:OWNS]->(tool:Tool) RETURN entity.name LIMIT 20",
+            "MATCH (entity) RETURN entity.recovery_target LIMIT 20",
+        ]
+        for cypher in examples:
+            with self.subTest(cypher=cypher):
+                valid, reason = _validate_readonly_cypher(cypher)
+                self.assertFalse(valid)
+                self.assertTrue(reason)
 
     def test_custom_ontology_loads_without_python_changes(self):
         with tempfile.TemporaryDirectory() as directory:

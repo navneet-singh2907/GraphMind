@@ -16,6 +16,7 @@ from streamlit_agraph import Config, Edge, Node
 
 from src.retrieval.graph_rag import answer_question
 from src.agent.orchestrator import answer_agentic
+from src.graph.neo4j_client import get_graph_inventory
 from src.retrieval.vector_rag import answer_question_vector
 
 
@@ -123,6 +124,11 @@ def log_feedback(question: str, pipeline: str, rating: str) -> None:
         )
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def load_graph_inventory() -> dict:
+    return get_graph_inventory()
+
+
 def run_hybrid(question: str) -> None:
     st.session_state.hybrid_history.append({"role": "user", "content": question})
     with st.spinner("Routing and retrieving..."):
@@ -156,11 +162,8 @@ with st.sidebar:
     st.divider()
     st.markdown("**Graph inventory**")
     try:
-        seed = json.loads(Path("data/processed/graph_seed.json").read_text(encoding="utf-8"))
-        counts: dict[str, int] = {}
-        for node in seed.get("nodes", []):
-            label = node.get("label", "Unknown")
-            counts[label] = counts.get(label, 0) + 1
+        inventory = load_graph_inventory()
+        counts = inventory["labels"]
         stats = {
             "Documents": counts.get("Document", 0),
             "Chunks": counts.get("Chunk", 0),
@@ -168,11 +171,28 @@ with st.sidebar:
             "Tools": counts.get("Tool", 0),
             "People": counts.get("Person", 0),
             "Organizations": counts.get("Organization", 0),
-            "Graph nodes": len(seed.get("nodes", [])),
-            "Relationships": len(seed.get("relationships", [])),
+            "Graph nodes": inventory["nodes"],
+            "Relationships": inventory["relationships"],
         }
-    except (OSError, json.JSONDecodeError):
-        stats = {"Documents": 0, "Chunks": 0, "Graph nodes": 0, "Relationships": 0}
+    except Exception:
+        try:
+            seed = json.loads(Path("data/processed/graph_seed.json").read_text(encoding="utf-8"))
+            counts: dict[str, int] = {}
+            for node in seed.get("nodes", []):
+                label = node.get("label", "Unknown")
+                counts[label] = counts.get(label, 0) + 1
+            stats = {
+                "Documents": counts.get("Document", 0),
+                "Chunks": counts.get("Chunk", 0),
+                "Concepts": counts.get("Concept", 0),
+                "Tools": counts.get("Tool", 0),
+                "People": counts.get("Person", 0),
+                "Organizations": counts.get("Organization", 0),
+                "Graph nodes": len(seed.get("nodes", [])),
+                "Relationships": len(seed.get("relationships", [])),
+            }
+        except (OSError, json.JSONDecodeError):
+            stats = {"Documents": 0, "Chunks": 0, "Graph nodes": 0, "Relationships": 0}
     for label, value in stats.items():
         left, right = st.columns([3, 1])
         left.caption(label)

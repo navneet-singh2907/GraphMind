@@ -16,7 +16,9 @@ NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
 
-LLM_MODEL = os.getenv("LLM_MODEL", "meta-llama/Llama-3.3-70B-Instruct")
+LLM_MODEL = os.getenv("LLM_MODEL", "Qwen/Qwen3-30B-A3B-Instruct-2507")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B")
+MODEL_TIMEOUT_SECONDS = max(5.0, float(os.getenv("MODEL_TIMEOUT_SECONDS", "45")))
+MODEL_MAX_RETRIES = max(0, int(os.getenv("MODEL_MAX_RETRIES", "1")))
 
 AGENT_MAX_ATTEMPTS = max(1, int(os.getenv("AGENT_MAX_ATTEMPTS", "2")))

@@ -14,6 +14,36 @@ def get_driver():
     return GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 
+def get_graph_inventory() -> dict:
+    """Return total and per-label counts for the configured Neo4j database."""
+    driver = get_driver()
+    try:
+        with driver.session(database=NEO4J_DATABASE) as session:
+            summary = session.run(
+                """
+                MATCH (node)
+                WITH count(node) AS nodes
+                OPTIONAL MATCH ()-[relationship]->()
+                RETURN nodes, count(relationship) AS relationships
+                """
+            ).single()
+            label_rows = session.run(
+                """
+                MATCH (node)
+                UNWIND labels(node) AS label
+                RETURN label, count(node) AS count
+                ORDER BY label
+                """
+            )
+            return {
+                "nodes": int(summary["nodes"]) if summary else 0,
+                "relationships": int(summary["relationships"]) if summary else 0,
+                "labels": {row["label"]: int(row["count"]) for row in label_rows},
+            }
+    finally:
+        driver.close()
+
+
 def get_related_content(entity_names: list[str], limit: int = 5) -> list[dict]:
     """Return source chunks that discuss any of the supplied entities."""
     names = list({name for name in entity_names if isinstance(name, str) and name.strip()})[:10]

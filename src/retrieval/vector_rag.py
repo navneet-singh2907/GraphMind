@@ -16,7 +16,14 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from src.ingestion.loader import load_and_chunk
-from src.utils.config import EMBEDDING_MODEL, LLM_MODEL, NEBIUS_API_KEY, NEBIUS_BASE_URL
+from src.utils.config import (
+    EMBEDDING_MODEL,
+    LLM_MODEL,
+    MODEL_MAX_RETRIES,
+    MODEL_TIMEOUT_SECONDS,
+    NEBIUS_API_KEY,
+    NEBIUS_BASE_URL,
+)
 from src.utils.nebius_embeddings import NebiusEmbeddings
 
 
@@ -53,6 +60,8 @@ def _get_llm():
         openai_api_key=NEBIUS_API_KEY,
         openai_api_base=NEBIUS_BASE_URL,
         temperature=0.2,
+        timeout=MODEL_TIMEOUT_SECONDS,
+        max_retries=MODEL_MAX_RETRIES,
     )
 
 

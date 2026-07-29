@@ -180,6 +180,7 @@ Runtime requirements:
 - never copy `.env`, local source data, generated indexes, or credentials into the image;
 - allow outbound HTTPS/Bolt traffic to Nebius and the managed Neo4j database;
 - allow up to five minutes for the initial synthetic vector-index bootstrap;
+- keep model requests bounded with `MODEL_TIMEOUT_SECONDS` and `MODEL_MAX_RETRIES`;
 - treat the local Chroma directory as ephemeral and rebuildable.
 
 Set `GRAPHMIND_BOOTSTRAP_DEMO=false` only when the container is supplied with separately managed

@@ -14,7 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.graph.ontology import DEFAULT_ONTOLOGY
-from src.utils.config import LLM_MODEL, NEBIUS_API_KEY, NEBIUS_BASE_URL
+from src.utils.config import (
+    LLM_MODEL,
+    MODEL_MAX_RETRIES,
+    MODEL_TIMEOUT_SECONDS,
+    NEBIUS_API_KEY,
+    NEBIUS_BASE_URL,
+)
 
 
 PROCESSED_DIR = Path("data/processed")
@@ -176,7 +182,12 @@ def build_graph_seed(
     if not base_only:
         from openai import OpenAI
 
-        client = OpenAI(api_key=NEBIUS_API_KEY, base_url=NEBIUS_BASE_URL)
+        client = OpenAI(
+            api_key=NEBIUS_API_KEY,
+            base_url=NEBIUS_BASE_URL,
+            timeout=MODEL_TIMEOUT_SECONDS,
+            max_retries=MODEL_MAX_RETRIES,
+        )
         for index, record in enumerate(extraction_records, start=1):
             print(f"Extracting graph items {index}/{len(extraction_records)}: {record['id']}")
             try:
