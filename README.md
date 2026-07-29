@@ -31,6 +31,53 @@ Verify sufficiency and confidence
 
 The loop is deliberately bounded to control latency and cost. The response includes the plan, tool trace, evidence count, verification result, confidence, and number of attempts.
 
+## Architecture at a glance
+
+```mermaid
+flowchart TD
+    A["Heterogeneous sources"] --> B["Parser adapters"]
+    B --> C["Canonical DocumentChunk contract"]
+    C --> D["BM25 keyword index"]
+    C --> E["Chroma vector index"]
+    C --> F["Neo4j relationship graph"]
+
+    G["Streamlit UI or MCP client"] --> H["Bounded retrieval agent"]
+    H --> I["Plan 1-3 tool calls"]
+    I --> J["Vector, keyword, metadata, source, and graph tools"]
+    D --> J
+    E --> J
+    F --> J
+    J --> K["Deduplicate and verify evidence"]
+    K -->|"Insufficient"| I
+    K -->|"Sufficient or attempt limit reached"| L["Source-grounded synthesis"]
+    L --> G
+```
+
+The ingestion and retrieval layers are intentionally decoupled. New source formats implement the
+parser contract, new datasets can supply a different ontology, and new retrieval backends implement
+the tool interface without changing the agent loop.
+
+## Key engineering decisions
+
+| Decision | Why it matters |
+|---|---|
+| Canonical `DocumentChunk` contract | Prevents each retriever from depending on source-specific parsing logic |
+| Configurable JSON ontology | Adapts graph extraction to a dataset without editing Python |
+| Hybrid retrieval | Combines semantic recall, exact matching, metadata filters, source inspection, and graph traversal |
+| Bounded plan-verify-retry loop | Adds agency while limiting runaway latency, model usage, and tool calls |
+| Evidence-first responses | Exposes citations, source metadata, verification, and retrieval traces |
+| Graceful graph fallback | Vector and keyword retrieval remain useful when graph evidence is unavailable |
+| Immutable non-root container | Makes the same tested image portable from a laptop to a managed container platform |
+
+### Latency and quality tradeoff
+
+The full agentic path favors evidence quality and inspectability over minimum response time. A
+question may require planning, query embedding, optional Cypher generation, evidence verification,
+one bounded retry, and final synthesis. These remote calls currently run sequentially. A
+latency-sensitive production version could offer a deterministic fast path, parallelize independent
+retrievers, and reserve the larger model for final synthesis while retaining this workflow as a
+deeper analysis mode.
+
 ## Data-agnostic ingestion
 
 Every parser implements the same adapter interface and emits the same `DocumentChunk` model.
@@ -205,9 +252,23 @@ GraphMind was validated in a temporary AWS staging environment using:
 - Neo4j Aura as the managed relationship graph.
 
 The deployment ran one health-checked Fargate task and served the synthetic demo corpus through the
-same agentic retrieval workflow used locally. The screenshots are retained as deployment evidence;
-the public staging resources are intentionally temporary and can be removed after recording the
-demo.
+same agentic retrieval workflow used locally. After the demo was recorded, the public endpoint,
+Fargate service, load balancer, security groups, logs, secret, ECR repository, task definitions, and
+temporary IAM policies were intentionally removed. The screenshots are retained as deployment
+evidence without leaving billable staging infrastructure running.
+
+### Validated staging results
+
+| Check | Observed result |
+|---|---|
+| Public health endpoint | `200 OK` from `/_stcore/health` |
+| ECS service | 1 desired task, 1 running task, steady deployment |
+| Deployed graph inventory | 89 nodes and 231 relationships |
+| Deployed document inventory | 10 documents and 13 chunks |
+| Container identity | Non-root distroless runtime |
+| ECR basic scan | 0 critical, high, medium, low, or informational findings at scan time |
+| End-to-end query | Public UI returned a cited answer with sources, verification, and retrieval trace |
+| Teardown | Named AWS resources deleted and temporary deployment permissions detached |
 
 ### Source-grounded Agentic RAG
 
