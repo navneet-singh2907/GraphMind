@@ -2,7 +2,8 @@
 
 GraphMind is an extensible agentic RAG engine for heterogeneous documents. It normalizes supported source formats into one canonical contract, builds semantic and graph indexes, plans retrieval across multiple tools, verifies the collected evidence, and retries before producing a cited answer.
 
-> **Selling point:** the retrieval architecture is reusable across datasets. The only bundled sources are a clearly labeled synthetic demo corpus; no customer data or domain-specific schema is hardcoded into the pipeline.
+> The retrieval architecture is reusable across datasets. The only bundled sources are a clearly labeled synthetic demo corpus; no customer data or domain-specific schema is hardcoded into the pipeline.
+> video link - https://drive.google.com/file/d/1HNmFtT2ZTEFfanL7TNz1ayOmnqUskW-C/view?usp=sharing
 
 ## Demo interface
 
